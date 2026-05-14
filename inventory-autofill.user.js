@@ -5,7 +5,7 @@
 // @supportURL   https://unbrinks.vercel.app/tools/untechapp
 // @updateURL    https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
 // @downloadURL  https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-// @version      3.7.0
+// @version      3.7.1
 // @description  Live loader for untechapp. Caches the bundle in extension storage, injects at document-start, checks for updates via API.
 // @author       moefingers
 // @match        https://techapp.brinkshome.com/*
@@ -31,7 +31,7 @@
 (function () {
   'use strict';
 
-  const LOADER_VERSION = '3.7.0';
+  const LOADER_VERSION = '3.7.1';
   const BUNDLE_API = 'https://unbrinks.vercel.app/api/tools/userscript/bundle';
   const CONNECT_API = 'https://unbrinks.vercel.app/api/tools/userscript/connect';
   // Bundle-side counterparts live in untechapp/src/config.ts +
@@ -89,6 +89,37 @@
     }
   } catch (e) {
     unsafeWindow.__untechappLoader = loaderMeta;
+  }
+
+  // ── GM cookie bridge ───────────────────────────────────────────────
+  // Exposes GM_cookie.list as window.__untechappCookie.list so the
+  // bundle (which runs in page context, not userscript context) can
+  // read cookies including HttpOnly. Requires Tampermonkey "Allow
+  // scripts to access cookies" in Advanced settings + @grant GM_cookie
+  // in this header. Returns a Promise — wraps the callback-style API.
+  try {
+    if (typeof GM_cookie !== 'undefined' && GM_cookie && typeof GM_cookie.list === 'function') {
+      const listCookies = function (details) {
+        return new Promise(function (resolve) {
+          try {
+            GM_cookie.list(details || {}, function (cookies, error) {
+              resolve({ cookies: cookies || [], error: error || null });
+            });
+          } catch (e) {
+            resolve({ cookies: [], error: String(e) });
+          }
+        });
+      };
+      const cookieBridge = { list: listCookies };
+      if (typeof exportFunction === 'function') {
+        unsafeWindow.__untechappCookie = cloneInto({}, unsafeWindow);
+        unsafeWindow.__untechappCookie.list = exportFunction(listCookies, unsafeWindow);
+      } else {
+        unsafeWindow.__untechappCookie = cookieBridge;
+      }
+    }
+  } catch (e) {
+    console.warn('[untechapp loader] GM cookie bridge failed:', e);
   }
 
   // ── GM storage bridge ──────────────────────────────────────────────
