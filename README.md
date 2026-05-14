@@ -1,6 +1,6 @@
 # untechapp-public-bundle
 
-This is the loader for [untechapp](https://github.com/moefingers/untechapp), served publicly to maintain separation of concerns.
+This is the loader for untechapp, served publicly to maintain separation of concerns.
 
 ## Install URL
 
