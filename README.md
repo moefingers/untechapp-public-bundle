@@ -2,10 +2,8 @@
 
 This is the loader for untechapp, served publicly to maintain separation of concerns.
 
-## Install URL
+## Install
 
-```
-https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-```
+[**Install the userscript**](https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js)
 
-Paste into Tampermonkey to install.
+Click the link with Tampermonkey installed and it'll prompt to install.
