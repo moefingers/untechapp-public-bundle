@@ -5,7 +5,7 @@
 // @supportURL   https://unbrinks.vercel.app/tools/untechapp
 // @updateURL    https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
 // @downloadURL  https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-// @version      3.7.1
+// @version      3.8.0
 // @description  Live loader for untechapp. Caches the bundle in extension storage, injects at document-start, checks for updates via API.
 // @author       moefingers
 // @match        https://techapp.brinkshome.com/*
@@ -31,7 +31,7 @@
 (function () {
   'use strict';
 
-  const LOADER_VERSION = '3.7.1';
+  const LOADER_VERSION = '3.8.0';
   const BUNDLE_API = 'https://unbrinks.vercel.app/api/tools/userscript/bundle';
   const CONNECT_API = 'https://unbrinks.vercel.app/api/tools/userscript/connect';
   // Bundle-side counterparts live in untechapp/src/config.ts +
@@ -92,11 +92,21 @@
   }
 
   // ── GM cookie bridge ───────────────────────────────────────────────
-  // Exposes GM_cookie.list as window.__untechappCookie.list so the
-  // bundle (which runs in page context, not userscript context) can
-  // read cookies including HttpOnly. Requires Tampermonkey "Allow
-  // scripts to access cookies" in Advanced settings + @grant GM_cookie
-  // in this header. Returns a Promise — wraps the callback-style API.
+  // Exposes GM_cookie.{list,set,delete} as window.__untechappCookie.*
+  // so the bundle (which runs in page context, not userscript context)
+  // can read AND write HttpOnly cookies. Required by the offline session
+  // keep-alive flow:
+  //   - list(): collect AppServiceAuthSession from techapp to push to
+  //     unbrinks for server-side refresh
+  //   - set(): write server-refreshed cookies BACK into the browser at
+  //     boot so /.auth/refresh from the tab uses the latest Azure-rotated
+  //     value instead of a stale one
+  //   - delete(): wipe browser-side cookies on explicit sign-out so the
+  //     cron's refreshed value isn't replayed by a leftover tab
+  //
+  // Requires Tampermonkey "Allow scripts to access cookies" in Advanced
+  // settings + @grant GM_cookie in this header. All three return a
+  // Promise — wrapping the callback-style API.
   try {
     if (typeof GM_cookie !== 'undefined' && GM_cookie && typeof GM_cookie.list === 'function') {
       const listCookies = function (details) {
@@ -110,10 +120,42 @@
           }
         });
       };
-      const cookieBridge = { list: listCookies };
+      const setCookie = function (details) {
+        return new Promise(function (resolve) {
+          try {
+            if (typeof GM_cookie.set !== 'function') {
+              resolve({ ok: false, error: 'GM_cookie.set not available' });
+              return;
+            }
+            GM_cookie.set(details || {}, function (error) {
+              resolve({ ok: !error, error: error || null });
+            });
+          } catch (e) {
+            resolve({ ok: false, error: String(e) });
+          }
+        });
+      };
+      const deleteCookie = function (details) {
+        return new Promise(function (resolve) {
+          try {
+            if (typeof GM_cookie.delete !== 'function') {
+              resolve({ ok: false, error: 'GM_cookie.delete not available' });
+              return;
+            }
+            GM_cookie.delete(details || {}, function (error) {
+              resolve({ ok: !error, error: error || null });
+            });
+          } catch (e) {
+            resolve({ ok: false, error: String(e) });
+          }
+        });
+      };
+      const cookieBridge = { list: listCookies, set: setCookie, delete: deleteCookie };
       if (typeof exportFunction === 'function') {
         unsafeWindow.__untechappCookie = cloneInto({}, unsafeWindow);
         unsafeWindow.__untechappCookie.list = exportFunction(listCookies, unsafeWindow);
+        unsafeWindow.__untechappCookie.set = exportFunction(setCookie, unsafeWindow);
+        unsafeWindow.__untechappCookie.delete = exportFunction(deleteCookie, unsafeWindow);
       } else {
         unsafeWindow.__untechappCookie = cookieBridge;
       }
