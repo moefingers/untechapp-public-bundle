@@ -5,7 +5,7 @@
 // @supportURL   https://unbrinks.vercel.app/tools/untechapp
 // @updateURL    https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
 // @downloadURL  https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-// @version      3.8.0
+// @version      3.9.0
 // @description  Live loader for untechapp. Caches the bundle in extension storage, injects at document-start, checks for updates via API.
 // @author       moefingers
 // @match        https://techapp.brinkshome.com/*
@@ -31,7 +31,25 @@
 (function () {
   'use strict';
 
-  const LOADER_VERSION = '3.8.0';
+  // Capture location.pathname AT LOADER START — earliest moment we can
+  // observe the URL the user requested. Vue's chunks load after the
+  // userscript and run beforeEach guards that redirect unknown routes
+  // to /404 BEFORE our bundle's IIFE evaluates (on cache-hot loads the
+  // bundle injects synchronously, but on cold loads the bundle fetch
+  // is async and Vue wins the race). The bundle reads this via
+  // window.__untechappInitialPath and falls back to location.pathname
+  // when missing (dev path / direct injection).
+  //
+  // unsafeWindow because the userscript runs in an isolated realm by
+  // default; the bundle injected via document.createElement('script')
+  // runs in the page realm and needs the property on the same window.
+  try {
+    unsafeWindow.__untechappInitialPath = location.pathname;
+  } catch (_) {
+    /* unsafeWindow unavailable in some browsers; bundle has fallback */
+  }
+
+  const LOADER_VERSION = '3.9.0';
   const BUNDLE_API = 'https://unbrinks.vercel.app/api/tools/userscript/bundle';
   const CONNECT_API = 'https://unbrinks.vercel.app/api/tools/userscript/connect';
   // Bundle-side counterparts live in untechapp/src/config.ts +
