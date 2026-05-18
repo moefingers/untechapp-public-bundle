@@ -5,7 +5,7 @@
 // @supportURL   https://unbrinks.vercel.app/tools/untechapp
 // @updateURL    https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
 // @downloadURL  https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-// @version      3.9.0
+// @version      3.9.1
 // @description  Live loader for untechapp. Caches the bundle in extension storage, injects at document-start, checks for updates via API.
 // @author       moefingers
 // @match        https://techapp.brinkshome.com/*
@@ -49,7 +49,7 @@
     /* unsafeWindow unavailable in some browsers; bundle has fallback */
   }
 
-  const LOADER_VERSION = '3.9.0';
+  const LOADER_VERSION = '3.9.1';
   const BUNDLE_API = 'https://unbrinks.vercel.app/api/tools/userscript/bundle';
   const CONNECT_API = 'https://unbrinks.vercel.app/api/tools/userscript/connect';
   // Bundle-side counterparts live in untechapp/src/config.ts +
@@ -94,7 +94,12 @@
   // ── Expose loader metadata ────────────────────────────────────────
   const loaderMeta = {
     loaderVersion: LOADER_VERSION,
-    loaderUrl: 'https://unbrinks.vercel.app/assets/tools/inventory-autofill.user.js',
+    // The public-bundle GitHub raw is the canonical install/update URL —
+    // matches @updateURL/@downloadURL above so manual "update now" from
+    // inside untechapp's panel hits the same source Tampermonkey's
+    // automatic update check uses. Don't point this at an unbrinks-hosted
+    // copy: that lags Vercel deploys and was a source of divergence.
+    loaderUrl: 'https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js',
     bundleVersion: GM_getValue(K_VERSION, '') || null,
     updateAvailable: null,
   };
