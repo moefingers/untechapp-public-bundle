@@ -5,7 +5,7 @@
 // @supportURL   https://unbrinks.vercel.app/tools/untechapp
 // @updateURL    https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
 // @downloadURL  https://raw.githubusercontent.com/moefingers/untechapp-public-bundle/main/inventory-autofill.user.js
-// @version      3.9.1
+// @version      3.10.0
 // @description  Live loader for untechapp. Caches the bundle in extension storage, injects at document-start, checks for updates via API.
 // @author       moefingers
 // @match        https://techapp.brinkshome.com/*
@@ -20,6 +20,8 @@
 // @grant        unsafeWindow
 // @connect      unbrinks.vercel.app
 // @connect      login.microsoftonline.com
+// @connect      localhost
+// @connect      127.0.0.1
 // @resource     theme-default-logo https://unbrinks.vercel.app/assets/tools/unbrinks.png
 // @resource     theme-2k-logo https://unbrinks.vercel.app/assets/tools/themes/2k/brinks-2klogo.webp
 // @resource     theme-2k-kobe https://unbrinks.vercel.app/assets/tools/themes/2k/nba2k-kobe-bryant.webp
@@ -49,7 +51,7 @@
     /* unsafeWindow unavailable in some browsers; bundle has fallback */
   }
 
-  const LOADER_VERSION = '3.9.1';
+  const LOADER_VERSION = '3.10.0';
   const BUNDLE_API = 'https://unbrinks.vercel.app/api/tools/userscript/bundle';
   const CONNECT_API = 'https://unbrinks.vercel.app/api/tools/userscript/connect';
   // Bundle-side counterparts live in untechapp/src/config.ts +
@@ -189,6 +191,39 @@
 
   // ── GM storage bridge ──────────────────────────────────────────────
   try {
+    // Dev-server bridge (CSP-bypass remote channel). GM_xmlhttpRequest runs in
+    // the EXTENSION context — exempt from the page's CSP — so the bundle can
+    // reach the local dev-server on EVERY origin it runs on (techapp,
+    // login.microsoftonline.com, the /.auth callback hops), even where a
+    // page-context WebSocket is blocked. Scoped to localhost:9876 only.
+    const devRequest = function (opts) {
+      return new Promise(function (resolve) {
+        try {
+          const o = opts || {};
+          const p = String(o.path || '/');
+          const url =
+            'http://localhost:9876' + (p.charAt(0) === '/' ? p : '/' + p);
+          GM_xmlhttpRequest({
+            method: o.method || 'GET',
+            url: url,
+            data: o.body != null ? o.body : undefined,
+            headers: { 'Content-Type': 'application/json' },
+            timeout: o.timeoutMs || 30000,
+            onload: function (r) {
+              resolve({ ok: true, status: r.status, body: r.responseText || '' });
+            },
+            onerror: function () {
+              resolve({ ok: false, status: 0, body: '' });
+            },
+            ontimeout: function () {
+              resolve({ ok: false, status: 0, body: '' });
+            },
+          });
+        } catch (e) {
+          resolve({ ok: false, status: 0, body: String(e) });
+        }
+      });
+    };
     const storageBridge = {
       get: function (key, fallback) { return GM_getValue(key, fallback); },
       set: function (key, value) { GM_setValue(key, value); },
@@ -196,12 +231,14 @@
         try { return GM_getResourceURL(name); }
         catch { return null; }
       },
+      devRequest: devRequest,
     };
     if (typeof exportFunction === 'function') {
       unsafeWindow.__untechappStorage = cloneInto({}, unsafeWindow);
       unsafeWindow.__untechappStorage.get = exportFunction(storageBridge.get, unsafeWindow);
       unsafeWindow.__untechappStorage.set = exportFunction(storageBridge.set, unsafeWindow);
       unsafeWindow.__untechappStorage.getResource = exportFunction(storageBridge.getResource, unsafeWindow);
+      unsafeWindow.__untechappStorage.devRequest = exportFunction(storageBridge.devRequest, unsafeWindow);
     } else {
       unsafeWindow.__untechappStorage = storageBridge;
     }
